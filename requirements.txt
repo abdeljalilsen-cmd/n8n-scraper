@@ -5,7 +5,3 @@ readability-lxml>=0.8.1
 html5lib>=1.1
 fastapi
 uvicorn
-
-
-
-
