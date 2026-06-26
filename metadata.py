@@ -23,14 +23,24 @@ def _meta_content(tag: Tag) -> str | None:
     return value or None
 
 
-def _first_meta(soup: BeautifulSoup, *, name: str | None = None, prop: str | None = None) -> str | None:
-    """Find the first meta tag matching name or property."""
+def _first_meta(
+    soup: BeautifulSoup,
+    *,
+    name: str | None = None,
+    prop: str | None = None,
+    itemprop: str | None = None,
+) -> str | None:
+    """Find the first meta tag matching name, property, or itemprop."""
     if name:
         tag = soup.find("meta", attrs={"name": re.compile(rf"^{re.escape(name)}$", re.I)})
         if tag:
             return _meta_content(tag)
     if prop:
         tag = soup.find("meta", attrs={"property": re.compile(rf"^{re.escape(prop)}$", re.I)})
+        if tag:
+            return _meta_content(tag)
+    if itemprop:
+        tag = soup.find("meta", attrs={"itemprop": re.compile(rf"^{re.escape(itemprop)}$", re.I)})
         if tag:
             return _meta_content(tag)
     return None
@@ -74,12 +84,65 @@ def _flatten_schema_objects(json_ld_items: list[Any]) -> list[dict[str, Any]]:
     return objects
 
 
+def _extract_microdata(soup: BeautifulSoup) -> list[dict[str, Any]]:
+    """
+    Extract Microdata items (itemscope / itemprop) from the DOM.
+
+    Returns a list of dicts, each representing one itemscope root with
+    its itemtype and a flat mapping of itemprop → text value.
+    """
+    items: list[dict[str, Any]] = []
+    for root in soup.find_all(attrs={"itemscope": True}):
+        if not isinstance(root, Tag):
+            continue
+        itemtype = root.get("itemtype", "")
+        if isinstance(itemtype, list):
+            itemtype = " ".join(str(v) for v in itemtype)
+        props: dict[str, Any] = {}
+        for prop_tag in root.find_all(attrs={"itemprop": True}):
+            if not isinstance(prop_tag, Tag):
+                continue
+            prop_name = prop_tag.get("itemprop", "")
+            if isinstance(prop_name, list):
+                prop_name = " ".join(str(v) for v in prop_name)
+            prop_name = str(prop_name).strip()
+            if not prop_name:
+                continue
+            # Prefer content attribute (meta tags), then href/src, then text
+            value: str = ""
+            if prop_tag.get("content"):
+                value = str(prop_tag["content"]).strip()
+            elif prop_tag.get("href"):
+                value = str(prop_tag["href"]).strip()
+            elif prop_tag.get("src"):
+                value = str(prop_tag["src"]).strip()
+            else:
+                value = prop_tag.get_text(strip=True)
+            if value:
+                if prop_name in props:
+                    existing = props[prop_name]
+                    if isinstance(existing, list):
+                        existing.append(value)
+                    else:
+                        props[prop_name] = [existing, value]
+                else:
+                    props[prop_name] = value
+        items.append({"itemtype": str(itemtype), "properties": props})
+    return items
+
+
 def extract_metadata(html: str) -> dict[str, Any]:
     """
     Extract page metadata from raw HTML.
 
-    Collects title, description, Open Graph fields, canonical URL,
-    language, JSON-LD, and flattened schema.org objects.
+    Collects:
+    - Page title and H1 fallback
+    - Meta description and keywords
+    - Open Graph tags (og:title, og:description, og:image, og:type, og:url)
+    - Twitter Card tags
+    - Canonical URL and language
+    - JSON-LD blocks and flattened schema.org objects
+    - Microdata (itemscope / itemprop) items
     """
     soup = BeautifulSoup(html, "lxml")
 
@@ -98,17 +161,33 @@ def extract_metadata(html: str) -> dict[str, Any]:
 
     json_ld = _extract_json_ld(soup)
     schema_objects = _flatten_schema_objects(json_ld)
+    microdata = _extract_microdata(soup)
 
     metadata: dict[str, Any] = {
+        # Core title
         "title": page_title,
         "page_title": page_title,
+        # Standard meta
         "meta_description": _first_meta(soup, name="description"),
+        "meta_keywords": _first_meta(soup, name="keywords"),
+        # Open Graph
         "og_title": _first_meta(soup, prop="og:title"),
         "og_description": _first_meta(soup, prop="og:description"),
+        "og_image": _first_meta(soup, prop="og:image"),
+        "og_type": _first_meta(soup, prop="og:type"),
+        "og_url": _first_meta(soup, prop="og:url"),
+        # Twitter Cards
+        "twitter_card": _first_meta(soup, name="twitter:card"),
+        "twitter_title": _first_meta(soup, name="twitter:title"),
+        "twitter_description": _first_meta(soup, name="twitter:description"),
+        "twitter_image": _first_meta(soup, name="twitter:image"),
+        # Navigation
         "canonical_url": canonical_url,
         "language": language,
+        # Structured data
         "json_ld": json_ld,
         "schema_org": schema_objects,
+        "microdata": microdata,
     }
 
     # Fallback: use first h1 if no title found
@@ -118,9 +197,10 @@ def extract_metadata(html: str) -> dict[str, Any]:
             metadata["title"] = h1.get_text(strip=True)
 
     logger.info(
-        "Extracted metadata: title=%r, json_ld_blocks=%d, schema_objects=%d",
+        "Extracted metadata: title=%r, json_ld_blocks=%d, schema_objects=%d, microdata_items=%d",
         metadata.get("title"),
         len(json_ld),
         len(schema_objects),
+        len(microdata),
     )
     return metadata

@@ -26,7 +26,10 @@ NETWORK_IDLE_WAIT: str = "networkidle"
 MAX_RETRIES: int = 3
 RETRY_BACKOFF_SECONDS: float = 2.0
 
-# Tags removed entirely during cleaning
+# Tags removed entirely during cleaning.
+# Only truly useless media/scripting/tracking tags are listed here.
+# Structural tags like nav, aside, footer, form are handled by heuristics
+# in cleaner.py so that course-relevant content inside them is preserved.
 REMOVE_TAGS: frozenset[str] = frozenset(
     {
         "script",
@@ -39,15 +42,6 @@ REMOVE_TAGS: frozenset[str] = frozenset(
         "source",
         "video",
         "audio",
-        "footer",
-        "nav",
-        "aside",
-        "form",
-        "button",
-        "input",
-        "select",
-        "option",
-        "textarea",
         "template",
         "link",
         "meta",
@@ -98,94 +92,118 @@ SEMANTIC_TAGS: frozenset[str] = frozenset(
     }
 )
 
-# Attributes kept on surviving elements
+# Attributes kept on surviving elements.
+# Keep structural, semantic, microdata, and accessibility attributes.
+# Inline event handlers, style, tracking attrs, and integrity attrs are dropped.
 ALLOWED_ATTRIBUTES: frozenset[str] = frozenset(
-    {"href", "src", "alt", "title", "datetime", "content", "itemprop"}
+    {
+        # Links and media
+        "href",
+        "src",
+        "alt",
+        "title",
+        # Accessibility
+        "aria-label",
+        "aria-expanded",
+        "aria-controls",
+        "aria-describedby",
+        "aria-hidden",
+        "role",
+        # Identity / anchoring
+        "id",
+        "name",
+        # Dates
+        "datetime",
+        # Microdata / Schema.org
+        "content",
+        "itemprop",
+        "itemscope",
+        "itemtype",
+        # Table layout
+        "colspan",
+        "rowspan",
+        # Language
+        "lang",
+        # Form semantics (kept for enrollment/price info)
+        "type",
+        "value",
+        "placeholder",
+        # data-* attributes are handled separately in _strip_attributes()
+    }
 )
 
-# Heuristic patterns for website chrome / boilerplate removal
+# Heuristic patterns for website chrome / boilerplate removal.
+# Only UNAMBIGUOUS identifiers are listed here — things that are almost
+# never used for actual course content. Broad terms like 'sidebar',
+# 'register', 'modal', 'login' are intentionally excluded because many
+# education websites use those class names for course-relevant sections.
 CHROME_KEYWORDS: tuple[str, ...] = (
-    "cookie",
-    "consent",
-    "gdpr",
-    "newsletter",
-    "subscribe",
-    "receive-email",
-    "receive email",
-    "login",
-    "sign-in",
-    "signin",
-    "signup",
-    "sign-up",
-    "register",
-    "modal",
-    "popup",
-    "overlay",
-    "dialog",
-    "breadcrumb",
-    "breadcrumbs",
-    "sidebar",
-    "side-bar",
-    "social-share",
-    "share-button",
-    "related-course",
-    "related-article",
-    "recommended",
-    "you-may-like",
-    "language-selector",
-    "lang-switch",
-    "search-bar",
-    "site-search",
-    "chat-widget",
-    "live-chat",
-    "intercom",
-    "crisp",
-    "zendesk",
-    "advertisement",
-    "advert",
+    # Cookie / GDPR banners
+    "cookiebanner",
+    "cookie-banner",
+    "cookie-consent",
+    "cookieconsent",
+    "gdpr-banner",
+    "gdpr-notice",
+    "consent-banner",
+    # Ads
     "ad-container",
     "ad-slot",
+    "ad-unit",
     "banner-ad",
-    "sponsored",
+    "google-ad",
+    "doubleclick",
+    # Floating / fixed widgets
     "back-to-top",
-    "scroll-top",
+    "backtotop",
+    "scroll-to-top",
     "floating-button",
-    "fab",
-    "promo-bar",
-    "announcement-bar",
-    "notification-bar",
-    "toolbar",
+    "chat-widget",
+    "live-chat-widget",
+    "intercom-container",
+    "intercom-lightweight-app",
+    "crisp-client",
+    "zopim",
+    "zendesk-widget",
+    # Site-level navigation chrome
     "site-header",
     "site-footer",
     "mega-menu",
     "main-nav",
     "top-nav",
-    "bottom-nav",
+    "global-nav",
+    "global-header",
+    "global-footer",
     "skip-link",
-    "accessibility-widget",
-    "trust-badge",
-    "payment-icons",
+    "skip-to-content",
+    # Social share toolbars
+    "social-share",
+    "share-toolbar",
+    "addthis",
+    "sharethis",
 )
 
+# ARIA roles that indicate website chrome.
+# 'complementary' (aside) and 'toolbar' are intentionally excluded because
+# many course pages place the syllabus/enrollment widget in an aside.
 CHROME_ROLES: frozenset[str] = frozenset(
     {
         "navigation",
         "banner",
-        "complementary",
         "search",
         "dialog",
         "alertdialog",
-        "toolbar",
         "contentinfo",
     }
 )
 
+# Only match truly invisible styles. position:fixed and position:absolute
+# are intentionally excluded — they are used by many sticky course-info
+# panels and enrollment widgets that are not hidden from the user.
 HIDDEN_STYLE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"display\s*:\s*none", re.I),
     re.compile(r"visibility\s*:\s*hidden", re.I),
     re.compile(r"opacity\s*:\s*0\b", re.I),
-    re.compile(r"position\s*:\s*fixed", re.I),
-    re.compile(r"position\s*:\s*absolute.*(?:left|top)\s*:\s*-?\d{4,}", re.I),
 )
 
 NEWSLETTER_TEXT_PATTERNS: tuple[re.Pattern[str], ...] = (
