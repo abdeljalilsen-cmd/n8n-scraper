@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 from bs4.element import Doctype
 
 from utils import (
-    ALLOWED_ATTRIBUTES,
     CHROME_KEYWORDS,
     CHROME_ROLES,
     HIDDEN_STYLE_PATTERNS,
@@ -334,21 +333,16 @@ def _remove_hidden_noise(soup: BeautifulSoup) -> None:
 
 def _strip_attributes(soup: BeautifulSoup) -> None:
     """
-    Keep whitelisted attributes and all data-* attributes.
+    Remove ALL attributes from every element.
 
-    Drops: inline event handlers, style, nonce, integrity, crossorigin,
-           and any tracking attribute not in ALLOWED_ATTRIBUTES.
+    The cleaned HTML is consumed by an LLM for text extraction — attribute
+    values (href, src, id, data-*, aria-*, class, etc.) add noise and token
+    cost without contributing semantic meaning.  All structured metadata
+    (URLs, microdata, Open Graph, JSON-LD) is captured separately by
+    metadata.py before this step runs.
     """
     for tag in soup.find_all(True):
-        attrs = dict(tag.attrs or {})
-        tag.attrs = attrs
-        for attr in list(attrs.keys()):
-            # Keep all data-* attributes (used by many frameworks for
-            # course metadata, accordion state, pricing info, etc.)
-            if attr.startswith("data-"):
-                continue
-            if attr not in ALLOWED_ATTRIBUTES:
-                del tag[attr]
+        tag.attrs = {}
 
 
 # ---------------------------------------------------------------------------
