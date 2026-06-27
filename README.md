@@ -1,144 +1,359 @@
-# LLM-Ready Web Scraper
+# LLM-Ready Course Web Scraper API
 
-Production-quality scraping pipeline that renders JavaScript-heavy pages with Playwright, extracts metadata, and produces aggressively cleaned HTML optimized for LLM information extraction.
+A production-ready web scraping API that renders JavaScript-heavy websites using Playwright, extracts structured metadata, and produces clean, LLM-optimized HTML for downstream information extraction.
 
-## Features
+The project is designed primarily for AI workflows, allowing Large Language Models to accurately extract information such as course prerequisites, curriculum, duration, instructors, certificates, learning outcomes, pricing, and other educational content from modern training websites.
 
-- Full JavaScript rendering via Playwright (Chromium, headless)
-- Metadata extraction (title, description, Open Graph, canonical URL, JSON-LD)
-- Aggressive DOM cleaning with semantic preservation
-- Website chrome removal via multi-signal heuristics
-- Token optimization targeting 70%+ size reduction
-- Modular architecture for n8n, CLI, or API integration
-- Bonus utilities: plain text, markdown, file export, statistics
+---
 
-## Requirements
+# Features
 
-- Python 3.12+
-- Chromium (installed via Playwright)
+* JavaScript rendering using Playwright (Chromium)
+* FastAPI REST API
+* Production deployment on Railway
+* Compatible with n8n workflows
+* Intelligent DOM cleaning while preserving semantic content
+* Metadata extraction
+* JSON-LD extraction
+* Open Graph extraction
+* Schema.org extraction
+* Canonical URL extraction
+* HTML optimization for LLM consumption
+* Plain text extraction
+* Markdown extraction
+* Automatic retry mechanism
+* Lazy-loaded content support
+* Content statistics
+* Modular architecture
 
-## Installation
+---
+
+# Technology Stack
+
+* Python 3.12+
+* FastAPI
+* Playwright
+* BeautifulSoup4
+* lxml
+* Readability-lxml
+* html5lib
+* Uvicorn
+* Railway
+
+---
+
+# Installation
+
+Clone the repository
 
 ```bash
+git clone <repository-url>
+
 cd scraper
+```
+
+Create a virtual environment
+
+```bash
 python -m venv .venv
+```
 
-# Windows
+Activate it
+
+Windows
+
+```bash
 .venv\Scripts\activate
+```
 
-# macOS/Linux
+Linux / macOS
+
+```bash
 source .venv/bin/activate
+```
 
+Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
+
+Install Playwright browser
+
+```bash
 playwright install chromium
 ```
 
-## Usage
+---
 
-### Python API (n8n / FastAPI)
+# Running Locally
 
-```python
-from main import scrape
-
-result = scrape("https://example.com/course")
-
-print(result["clean_html"])
-print(result["metadata"])
-print(result["stats"])
-```
-
-Or import individual modules:
-
-```python
-from scraper import fetch_rendered_html
-from metadata import extract_metadata
-from cleaner import clean_html, extract_text, extract_markdown
-from utils import compute_statistics, save_clean_html, save_json
-```
-
-### CLI
+Start the API
 
 ```bash
-python main.py https://example.com/course
+uvicorn app:app --reload
 ```
 
-With options:
-
-```bash
-python main.py https://example.com/course -o output --markdown --text -v
-```
-
-Example output:
+The API will be available at
 
 ```
-Original HTML: 4.8 MB
-Clean HTML: 380 KB
-Reduction: 92%
-Saved to output/
+http://127.0.0.1:8000
 ```
 
-## Output Format
+Swagger Documentation
 
-```python
+```
+http://127.0.0.1:8000/docs
+```
+
+---
+
+# Production Deployment
+
+The application is containerized using Docker and deployed on Railway.
+
+The deployment automatically:
+
+* Builds the Docker image
+* Installs Python dependencies
+* Uses the Playwright base image
+* Starts the FastAPI server using Uvicorn
+
+This is the URL: "https://n8n-scraper-production.up.railway.app/"
+---
+
+# API Endpoints
+
+## Health Check
+
+```
+GET /
+```
+
+Response
+
+```json
+{
+  "status": "online",
+  "service": "LLM Ready Scraper API"
+}
+```
+
+---
+
+## Scrape a Webpage
+
+```
+POST /scrape
+```
+
+Request
+
+```json
+{
+  "url": "https://www.coursera.org/learn/machine-learning"
+}
+```
+
+Example Response
+
+```json
 {
     "metadata": {
         "title": "...",
         "page_title": "...",
         "meta_description": "...",
-        "og_title": "...",
-        "og_description": "...",
         "canonical_url": "...",
-        "language": "en",
+        "language": "...",
         "json_ld": [...],
         "schema_org": [...],
         "source_url": "..."
     },
+
     "clean_html": "<article>...</article>",
+
     "stats": {
-        "original_size": 4800000,
-        "clean_size": 380000,
-        "reduction_percent": 92.08
+        "original_size": 4123856,
+        "clean_size": 694231,
+        "reduction_percent": 83.17
     }
 }
 ```
 
-## Pipeline Steps
+---
 
-1. **Fetch** — Playwright renders the page with retries, networkidle wait, and lazy-load scrolling
-2. **Metadata** — Extract structured metadata before any DOM mutation
-3. **Clean** — Remove scripts, styles, chrome, hidden elements, and non-semantic tags
-4. **Optimize** — Strip attributes, deduplicate text, collapse wrappers
-5. **Return** — Minimized semantic HTML + metadata + statistics
-
-## n8n Integration
-
-Use an **Execute Command** node:
-
-```bash
-cd /path/to/scraper && .venv/bin/python -c "import json; from main import scrape; print(json.dumps(scrape('{{$json.url}}')))"
-```
-
-Or wrap `scrape()` in a FastAPI endpoint for HTTP-based integration.
-
-## Project Structure
+# Project Architecture
 
 ```
 scraper/
-    main.py          # scrape() entry point + CLI
-    scraper.py       # Playwright fetching
-    cleaner.py       # DOM cleaning + text/markdown export
-    metadata.py      # Metadata extraction
-    utils.py         # Constants, helpers, file I/O
-    requirements.txt
-    README.md
+
+│
+├── app.py             # FastAPI application
+├── main.py            # Main scraping pipeline
+├── scraper.py         # Playwright renderer
+├── cleaner.py         # DOM cleaning and optimization
+├── metadata.py        # Metadata extraction
+├── utils.py           # Utility functions
+├── requirements.txt
+├── Dockerfile
+└── README.md
 ```
 
-## Error Handling
+---
 
-- Automatic retries with exponential backoff on fetch failures
-- `PageFetchError` raised when all retries are exhausted
-- JSON-LD parse failures are logged and skipped (non-fatal)
+# Scraping Pipeline
 
-## License
+## 1. Render
 
-MIT
+* Launch Chromium
+* Execute JavaScript
+* Wait for network idle
+* Trigger lazy loading
+
+↓
+
+## 2. Extract Metadata
+
+* Page title
+* Description
+* Open Graph
+* Canonical URL
+* JSON-LD
+* Schema.org
+
+↓
+
+## 3. Clean HTML
+
+Remove only unnecessary website chrome such as:
+
+* Headers
+* Footers
+* Navigation menus
+* Cookie banners
+* Login/Register popups
+* Chat widgets
+* Advertisements
+* Tracking scripts
+* Analytics scripts
+
+Preserve important educational content including:
+
+* Course descriptions
+* Prerequisites
+* Learning outcomes
+* Skills
+* Curriculum
+* Modules
+* FAQ
+* Pricing
+* Reviews
+* Ratings
+* Certificates
+* Instructor information
+* Requirements
+* Images
+* Tables
+* Lists
+* Semantic HTML structure
+
+↓
+
+## 4. Optimize
+
+* Remove unnecessary attributes
+* Normalize whitespace
+* Preserve semantic tags
+* Reduce token count while maximizing useful information
+
+↓
+
+## 5. Return
+
+Return
+
+* Metadata
+* Clean HTML
+* Statistics
+
+---
+
+# n8n Integration
+
+Use an HTTP Request node.
+
+Method
+
+```
+POST
+```
+
+URL
+
+```
+https://YOUR-RAILWAY-DOMAIN/scrape
+```
+
+Headers
+
+```
+Content-Type: application/json
+```
+
+Body
+
+```json
+{
+    "url": "{{$json.url}}"
+}
+```
+
+The API returns cleaned HTML ready to be passed directly into an LLM node for structured information extraction.
+
+---
+
+# Output Format
+
+```python
+{
+    "metadata": {...},
+    "clean_html": "...",
+    "stats": {
+        "original_size": int,
+        "clean_size": int,
+        "reduction_percent": float
+    }
+}
+```
+
+---
+
+# Error Handling
+
+The scraper includes:
+
+* Automatic retries
+* Exponential backoff
+* Playwright timeout handling
+* HTTP status validation
+* JavaScript rendering failure detection
+* Structured API error responses
+
+---
+
+# Primary Use Cases
+
+* AI-powered course prerequisite extraction
+* Educational platform indexing
+* Knowledge base generation
+* LLM preprocessing
+* RAG pipelines
+* n8n automation workflows
+* Training catalog aggregation
+* Structured information extraction from modern educational websites
+
+---
+
+# License
+
+MIT License
